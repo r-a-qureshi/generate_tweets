@@ -5,83 +5,86 @@ from keras.preprocessing import sequence
 from keras import layers
 from keras.utils import to_categorical
 import numpy as np
+from itertools import count, cycle
+
+NUM_CHARS = 63
 
 # read the data from the http://www.trumptwitterarchive.com/archive
 tweets = pd.read_csv('trump_tweets.csv')
+tweets.dropna(subset=['text'],inplace=True)
+tweets['text'] = tweets['text'].str.lower()
 tweets = tweets['text'].tolist()
 
+
 # set up 
-tokenizer = Tokenizer(char_level=True,lower=True)
-# use most recent 10,000 tweets
-# for some reason using all tweets causes an error in the tokenizer
-tokenizer.fit_on_texts(tweets[:10000])
-# mat = tokenizer.texts_to_matrix(tweets,mode='binary')
-seq = tokenizer.texts_to_sequences(tweets[:10000])
-seq = sequence.pad_sequences(seq,maxlen=280)
-# generate training data and targets from sequences
-def get_data_from_seq(tweets,maxlen=40,step=3,max_chars=68):
-    """Encode tweets"""
-    tweet_data = []
-    target = []
-    for tweet in tweets:
-        for i in range(0,280-maxlen,step):
-            tweet_data.append(to_categorical(tweet[i:i+maxlen],max_chars))
-            target.append(to_categorical(tweet[i+maxlen],max_chars))
-    return(tweet_data,target)
-# find out the size of characters
-num_chars = max(tokenizer.word_index.values())+1
-X,y = get_data_from_seq(seq,step=20,max_chars=num_chars)
-X = np.dstack(X)
-shape = X.shape
-X = X.reshape(shape[2],shape[0],shape[1])
-y = np.vstack(y)
-# seq = to_categorical(seq,num_chars+1)
-# X = to_categorical(X,num_chars+1)
-# y = to_categorical(y,num_chars+1)
-# get training and testing sequences
+tokenizer = Tokenizer(num_words=None,char_level=True,lower=True,oov_token='NA')
+tokenizer.fit_on_texts(tweets)
+seq = tokenizer.texts_to_sequences(tweets)
+seq = list(filter(lambda x: max(x)<63,seq))
+seq = sequence.pad_sequences(seq,maxlen=200,truncating='post',padding='pre')
+char_map = dict(map(reversed,tokenizer.word_index.items()))
+seq_gen = cycle(seq)
+def data_gen(data,maxlen=60,step=3,num_chars=63):
+    for twt in data:
+        for i in range(0,200-maxlen,step):
+            yield(
+                to_categorical(twt[i:i+maxlen],num_chars).reshape((1,maxlen,num_chars)),
+                to_categorical(twt[i+maxlen],num_chars),
+            )
 
-# X = [i[:-1] for i in seq]
-# y = [i[1:] for i in seq]
-
-
+def batch_gen(dgen,batch_size,maxlen=60,num_chars=63):
+    while True:
+        X = np.zeros((batch_size,maxlen,num_chars))
+        y = np.zeros((batch_size,num_chars))
+        for i in range(batch_size):
+            X[i],y[i] = next(dgen)
+        yield(X,y)
+            
 # build LSTM model
 model = keras.models.Sequential()
-model.add(layers.LSTM(128,input_shape=(40,num_chars)))
-model.add(layers.Dense(num_chars,activation='softmax'))
+model.add(layers.LSTM(128,input_shape=(60,NUM_CHARS)))
+model.add(layers.Dense(NUM_CHARS,activation='softmax'))
 
 optimizer = keras.optimizers.RMSprop(lr=.01)
 model.compile(loss='categorical_crossentropy',optimizer=optimizer)
 
-# training the model
-# model.fit(X,y,batch_size=128,epochs=10)
+#prepare generators
+dgen = data_gen(seq_gen)
+bgen = batch_gen(dgen,128)
 
-def reweight_distribution(original,temperature=.5):
-    dist = np.log(original) / temperature
+
+def reweight_distribution(original,temp=.5):
+    dist = np.log(original) / temp
     dist = np.exp(dist)
     return(dist/np.sum(dist))
 
-def sample(preds,temperature=.5):
+def sample(preds,temp=.5):
     preds = np.asarray(preds).astype('float64')
-    preds = reweight_distribution(preds,temperature)
-    probs = np.random.multinomial(1,preds,1)
-    return(np.argmax(probs)+1)
+    preds = reweight_distribution(preds,temp)
+    probs = np.random.multinomial(1,preds.reshape(-1),1).reshape(-1)
+    return(np.argmax(probs))
 
 
 #make a prediction
-def generate_tweet(seed,model,tokenizer,tweet='',maxlen=40,num_chars=156):
+def generate_tweet(seed,model,tokenizer,tweet='',maxlen=60,num_chars=156,temp=.5):
     if tweet == '':
         tweet = seed
     seed = tokenizer.texts_to_sequences([seed])
     seed = sequence.pad_sequences(seed,maxlen=maxlen)
     seed = to_categorical(seed,num_chars)
     prob = model.predict(seed)
-    next_char = sample(prob)
+    next_char = sample(prob,temp=temp)
+    # next_char = prob.argmax()
     reverse_word_map = dict(map(reversed,tokenizer.word_index.items()))
     next_char = reverse_word_map[next_char]
     tweet += next_char
     if len(tweet) == 280:
+        tweet = ' '.join(tweet.split(' ')[:-1])
         return(tweet)
     else:
-        return(generate_tweet(tweet[-maxlen:],model,tokenizer,tweet,maxlen,num_chars))
-
+        return(
+            generate_tweet(
+                tweet[-maxlen:],model,tokenizer,tweet,maxlen,num_chars
+            )
+        )
 
