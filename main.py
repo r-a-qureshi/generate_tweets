@@ -67,10 +67,17 @@ def sample(preds,temp=.5):
 
 #make a prediction
 def generate_tweet(seed,model,tokenizer,tweet='',maxlen=60,num_chars=156,temp=.5):
+    """Recursive function to generate tweets by iteratively predicting the next
+    character"""
     if tweet == '':
         tweet = seed
     seed = tokenizer.texts_to_sequences([seed])
-    seed = sequence.pad_sequences(seed,maxlen=maxlen)
+    seed = sequence.pad_sequences(
+        seed,
+        maxlen=maxlen,
+        truncating='pre',
+        padding='pre'
+    )
     seed = to_categorical(seed,num_chars)
     prob = model.predict(seed)
     next_char = sample(prob,temp=temp)
