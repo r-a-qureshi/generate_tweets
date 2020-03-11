@@ -37,7 +37,7 @@ def data_gen(data,maxlen=60,step=3,num_chars=63):
     # the data generator is a cycle so this will infinitely loop through the 
     # tweets
     for twt in data:
-        for i in range(0,200-maxlen,step):
+        for i in range(0,280-maxlen,step):
             yield(
                 to_categorical(twt[i:i+maxlen],num_chars).reshape((1,maxlen,num_chars)),
                 to_categorical(twt[i+maxlen],num_chars),
