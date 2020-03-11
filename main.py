@@ -26,7 +26,9 @@ seq = tokenizer.texts_to_sequences(tweets)
 seq = list(filter(lambda x: max(x)<63,seq))
 
 # pad tweets of varying lengths
-seq = sequence.pad_sequences(seq,maxlen=280,truncating='post',padding='pre')
+# use 200 characters instead of current length of 280 because most tweets are
+# older and use 140 characters or less. This is to minimize missing values
+seq = sequence.pad_sequences(seq,maxlen=200,truncating='post',padding='pre')
 char_map = dict(map(reversed,tokenizer.word_index.items()))
 
 # create a generator to loop through the list of tweets
@@ -37,7 +39,7 @@ def data_gen(data,maxlen=60,step=3,num_chars=63):
     # the data generator is a cycle so this will infinitely loop through the 
     # tweets
     for twt in data:
-        for i in range(0,280-maxlen,step):
+        for i in range(0,200-maxlen,step):
             yield(
                 to_categorical(twt[i:i+maxlen],num_chars).reshape((1,maxlen,num_chars)),
                 to_categorical(twt[i+maxlen],num_chars),
@@ -95,7 +97,7 @@ def sample(preds,temp=.5):
     probs = np.random.multinomial(1,preds.reshape(-1),1).reshape(-1)
     return(np.argmax(probs))
 
-def generate_tweet(seed,model,tokenizer,tweet='',maxlen=60,num_chars=156,temp=.5):
+def generate_tweet(seed,model,tokenizer,tweet='',maxlen=60,num_chars=63,temp=.5):
     """Recursive function to generate tweets by iteratively predicting the next
     character"""
     if tweet == '':
