@@ -23,8 +23,11 @@ seq = tokenizer.texts_to_sequences(tweets)
 seq = list(filter(lambda x: max(x)<63,seq))
 seq = sequence.pad_sequences(seq,maxlen=200,truncating='post',padding='pre')
 char_map = dict(map(reversed,tokenizer.word_index.items()))
+# create a generator to loop through the list of tweets
 seq_gen = cycle(seq)
+
 def data_gen(data,maxlen=60,step=3,num_chars=63):
+    """Generator to process tweet into sequence and next character encodings"""
     for twt in data:
         for i in range(0,200-maxlen,step):
             yield(
@@ -33,20 +36,33 @@ def data_gen(data,maxlen=60,step=3,num_chars=63):
             )
 
 def batch_gen(dgen,batch_size,maxlen=60,num_chars=63):
+    """Generator that returns batches of training data"""
     while True:
         X = np.zeros((batch_size,maxlen,num_chars))
         y = np.zeros((batch_size,num_chars))
         for i in range(batch_size):
             X[i],y[i] = next(dgen)
         yield(X,y)
+
+#callbacks
+stop_on_nan = keras.callbacks.TerminateOnNaN()
+checkpoint = keras.callbacks.ModelCheckpoint(
+    'tweet_model_{epoch:02d}_{loss:.3f}.h5'
+)
+stop = keras.callbacks.EarlyStopping(
+    monitor='loss',
+    patience=3,
+    restore_best_weights=True
+)
             
 # build LSTM model
 model = keras.models.Sequential()
-model.add(layers.LSTM(128,input_shape=(60,NUM_CHARS)))
+model.add(layers.LSTM(256,input_shape=(60,NUM_CHARS)))
 model.add(layers.Dense(NUM_CHARS,activation='softmax'))
 
-optimizer = keras.optimizers.RMSprop(lr=.01)
-model.compile(loss='categorical_crossentropy',optimizer=optimizer)
+# optimizer = keras.optimizers.RMSprop(lr=.01)
+adam = keras.optimizers.Adam()
+model.compile(loss='categorical_crossentropy',optimizer=adam)
 
 #prepare generators
 dgen = data_gen(seq_gen)
@@ -54,11 +70,14 @@ bgen = batch_gen(dgen,128)
 
 
 def reweight_distribution(original,temp=.5):
+    """Change softmax probability distribution to add more randomness to 
+    predictions"""
     dist = np.log(original) / temp
     dist = np.exp(dist)
     return(dist/np.sum(dist))
 
 def sample(preds,temp=.5):
+    """Predict next character encoding given softmax distribution"""
     preds = np.asarray(preds).astype('float64')
     preds = reweight_distribution(preds,temp)
     probs = np.random.multinomial(1,preds.reshape(-1),1).reshape(-1)
@@ -95,3 +114,10 @@ def generate_tweet(seed,model,tokenizer,tweet='',maxlen=60,num_chars=156,temp=.5
             )
         )
 
+if __name__ == "__main__":
+    model.fit(
+        bgen,
+        epochs=10,
+        steps_per_epoch=4e3,
+        callbacks=[stop_on_nan,checkpoint,stop]
+    )
