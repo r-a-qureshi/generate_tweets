@@ -3,7 +3,7 @@ The goal of this project is to train a LSTM recurrent neural network on the corp
 # Example outputs
 After training the model for 10 epochs, it generates tweets like these:
 ```python
->>> generate_tweet('house de',model,tokenizer,maxlen=60,num_chars=NUM_CHARS,temp=1)
+>>> generate_tweet('house de',model,tokenizer,maxlen=60,num_chars=63,temp=1)
 ```
 'house deal were all the new merivies when the new hampshire! thank you! #trump2016 #trump2016 http://t.co/h4bqjgokat  @trumpforpresident @realdonaldtrump donald trump we love the hoster is a president was not many place course interview tonight to be a far what we will expert'
 
