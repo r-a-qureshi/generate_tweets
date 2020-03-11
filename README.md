@@ -5,7 +5,7 @@ After training the model for 10 epochs, it generates tweets like these:
 ```python
 >>> generate_tweet('house de',model,tokenizer,maxlen=60,num_chars=63,temp=1)
 ```
-'house deal were all the new merivies when the new hampshire! thank you! #trump2016 #trump2016 http://t.co/h4bqjgokat  @trumpforpresident @realdonaldtrump donald trump we love the hoster is a president was not many place course interview tonight to be a far what we will expert'
+>'house deal were all the new merivies when the new hampshire! thank you! #trump2016 #trump2016 http://t.co/h4bqjgokat  @trumpforpresident @realdonaldtrump donald trump we love the hoster is a president was not many place course interview tonight to be a far what we will expert'
 
 ```python
 >>> generate_tweet('i alone can ',model,tokenizer,maxlen=60,num_chars=63,temp=.5)
