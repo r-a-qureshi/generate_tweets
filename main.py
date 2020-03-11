@@ -65,7 +65,6 @@ checkpoint = keras.callbacks.ModelCheckpoint(
 stop = keras.callbacks.EarlyStopping(
     monitor='loss',
     patience=3,
-    restore_best_weights=True
 )
             
 # build LSTM model
